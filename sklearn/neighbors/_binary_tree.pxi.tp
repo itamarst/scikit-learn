@@ -1187,6 +1187,9 @@ cdef class BinaryTree{{name_suffix}}:
         cdef intp_t i
         cdef const {{INPUT_DTYPE_t}}* pt
 
+        # Dereference thread local once, for speed:
+        cdef tree_stats_t* local_tree_stats = &tree_stats
+
         # initialize heap for neighbors
         cdef NeighborsHeap{{name_suffix}} heap = NeighborsHeap{{name_suffix}}(Xarr.shape[0], k)
 
@@ -1220,7 +1223,8 @@ cdef class BinaryTree{{name_suffix}}:
                     for i in range(Xarr.shape[0]):
                         reduced_dist_LB = min_rdist{{name_suffix}}(self, 0, pt)
                         self._query_single_depthfirst(0, pt, i, heap,
-                                                      reduced_dist_LB)
+                                                      reduced_dist_LB,
+                                                      local_tree_stats)
                         pt += Xarr.shape[1]
 
         distances, indices = heap.get_arrays(sort=sort_results)
@@ -1660,6 +1664,7 @@ cdef class BinaryTree{{name_suffix}}:
         intp_t i_pt,
         NeighborsHeap{{name_suffix}} heap,
         float64_t reduced_dist_LB,
+        tree_stats_t* local_tree_stats
     ) except -1 nogil:
         """Recursive Single-tree k-neighbors query, depth-first approach"""
         cdef NodeData_t node_info = self.node_data[i_node]
@@ -1673,12 +1678,12 @@ cdef class BinaryTree{{name_suffix}}:
         # Case 1: query point is outside node radius:
         #         trim it from the query
         if reduced_dist_LB > heap.largest(i_pt):
-            tree_stats.n_trims += 1
+            local_tree_stats.n_trims += 1
 
         # ------------------------------------------------------------
         # Case 2: this is a leaf node.  Update set of nearby points
         elif node_info.is_leaf:
-            tree_stats.n_leaves += 1
+            local_tree_stats.n_leaves += 1
             for i in range(node_info.idx_start, node_info.idx_end):
                 dist_pt = self.rdist(pt,
                                      &self.data[self.idx_array[i], 0],
@@ -1689,7 +1694,7 @@ cdef class BinaryTree{{name_suffix}}:
         # Case 3: Node is not a leaf.  Recursively query subnodes
         #         starting with the closest
         else:
-            tree_stats.n_splits += 1
+            local_tree_stats.n_splits += 1
             i1 = 2 * i_node + 1
             i2 = i1 + 1
             reduced_dist_LB_1 = min_rdist{{name_suffix}}(self, i1, pt)
@@ -1698,14 +1703,18 @@ cdef class BinaryTree{{name_suffix}}:
             # recursively query subnodes
             if reduced_dist_LB_1 <= reduced_dist_LB_2:
                 self._query_single_depthfirst(i1, pt, i_pt, heap,
-                                              reduced_dist_LB_1)
+                                              reduced_dist_LB_1,
+                                              local_tree_stats)
                 self._query_single_depthfirst(i2, pt, i_pt, heap,
-                                              reduced_dist_LB_2)
+                                              reduced_dist_LB_2,
+                                              local_tree_stats)
             else:
                 self._query_single_depthfirst(i2, pt, i_pt, heap,
-                                              reduced_dist_LB_2)
+                                              reduced_dist_LB_2,
+                                              local_tree_stats)
                 self._query_single_depthfirst(i1, pt, i_pt, heap,
-                                              reduced_dist_LB_1)
+                                              reduced_dist_LB_1,
+                                              local_tree_stats)
         return 0
 
     cdef int _query_single_breadthfirst(
@@ -1720,6 +1729,8 @@ cdef class BinaryTree{{name_suffix}}:
         cdef float64_t dist_pt, reduced_dist_LB
         cdef const NodeData_t* node_data = &self.node_data[0]
         cdef const {{INPUT_DTYPE_t}}* data = &self.data[0, 0]
+        # Dereference thread local once, for speed:
+        cdef tree_stats_t* local_tree_stats = &tree_stats
 
         # Set up the node heap and push the head node onto it
         cdef NodeHeapData_t nodeheap_item
@@ -1737,12 +1748,12 @@ cdef class BinaryTree{{name_suffix}}:
             # Case 1: query point is outside node radius:
             #         trim it from the query
             if reduced_dist_LB > heap.largest(i_pt):
-                tree_stats.n_trims += 1
+                local_tree_stats.n_trims += 1
 
             # ------------------------------------------------------------
             # Case 2: this is a leaf node.  Update set of nearby points
             elif node_data[i_node].is_leaf:
-                tree_stats.n_leaves += 1
+                local_tree_stats.n_leaves += 1
                 for i in range(node_data[i_node].idx_start,
                                node_data[i_node].idx_end):
                     dist_pt = self.rdist(pt,
@@ -1753,7 +1764,7 @@ cdef class BinaryTree{{name_suffix}}:
             # ------------------------------------------------------------
             # Case 3: Node is not a leaf.  Add subnodes to the node heap
             else:
-                tree_stats.n_splits += 1
+                local_tree_stats.n_splits += 1
                 for i in range(2 * i_node + 1, 2 * i_node + 3):
                     nodeheap_item.i1 = i
                     nodeheap_item.val = min_rdist{{name_suffix}}(self, i, pt)
