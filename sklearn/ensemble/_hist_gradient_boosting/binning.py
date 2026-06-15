@@ -83,12 +83,13 @@ def _find_binning_thresholds(col_data, max_bins, sample_weight=None):
                 extra_bins.append(int(np.ceil(v)))
         while extra_bins[-1] >= len(col_data):
             extra_bins.pop()
-        sort_idx = np.argpartition(col_data, extra_bins)
+        col_data = col_data.copy()
+        col_data.partition(extra_bins)
     else:
         sort_idx = np.argsort(col_data)
-    col_data = col_data[sort_idx]
-    if sample_weight is not None:
-        sample_weight = sample_weight[sort_idx]
+        col_data = col_data[sort_idx]
+        if sample_weight is not None:
+            sample_weight = sample_weight[sort_idx]
 
     distinct_values = np.unique(col_data).astype(X_DTYPE)
 
