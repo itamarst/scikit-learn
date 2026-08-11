@@ -881,6 +881,11 @@ class BaggingClassifier(ClassifierMixin, BaseBagging):
             verbose=verbose,
         )
 
+    def _parallel_args(self):
+        if self.estimator is None:  # TODO and is_free_threaded():
+            return {"require": "sharedmem"}
+        return {}
+
     def _get_estimator(self):
         """Resolve which estimator to return (default is DecisionTreeClassifier)"""
         if self.estimator is None:
@@ -1096,7 +1101,9 @@ class BaggingClassifier(ClassifierMixin, BaseBagging):
             # Parallel loop
             n_jobs, _, starts = _partition_estimators(self.n_estimators, self.n_jobs)
 
-            all_log_proba = Parallel(n_jobs=n_jobs, verbose=self.verbose)(
+            all_log_proba = Parallel(
+                n_jobs=n_jobs, verbose=self.verbose, **self._parallel_args()
+            )(
                 delayed(_parallel_predict_log_proba)(
                     self.estimators_[starts[i] : starts[i + 1]],
                     self.estimators_features_[starts[i] : starts[i + 1]],
@@ -1173,7 +1180,9 @@ class BaggingClassifier(ClassifierMixin, BaseBagging):
         # Parallel loop
         n_jobs, _, starts = _partition_estimators(self.n_estimators, self.n_jobs)
 
-        all_decisions = Parallel(n_jobs=n_jobs, verbose=self.verbose)(
+        all_decisions = Parallel(
+            n_jobs=n_jobs, verbose=self.verbose, **self._parallel_args()
+        )(
             delayed(_parallel_decision_function)(
                 self.estimators_[starts[i] : starts[i + 1]],
                 self.estimators_features_[starts[i] : starts[i + 1]],
@@ -1430,7 +1439,9 @@ class BaggingRegressor(RegressorMixin, BaseBagging):
         # Parallel loop
         n_jobs, _, starts = _partition_estimators(self.n_estimators, self.n_jobs)
 
-        all_y_hat = Parallel(n_jobs=n_jobs, verbose=self.verbose)(
+        all_y_hat = Parallel(
+            n_jobs=n_jobs, verbose=self.verbose, **self._parallel_args()
+        )(
             delayed(_parallel_predict_regression)(
                 self.estimators_[starts[i] : starts[i + 1]],
                 self.estimators_features_[starts[i] : starts[i + 1]],

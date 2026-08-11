@@ -232,7 +232,7 @@ def test_sparse_regression(sparse_container):
     for params in parameter_sets:
         # Trained on sparse format
         sparse_classifier = BaggingRegressor(
-            estimator=CustomSVR(), random_state=1, **params
+            estimator=CustomSVR(), random_state=1, n_jobs=-1, **params
         ).fit(X_train_sparse, y_train)
         sparse_results = sparse_classifier.predict(X_test_sparse)
 
