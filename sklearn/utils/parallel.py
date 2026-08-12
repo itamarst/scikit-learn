@@ -6,6 +6,7 @@ usage.
 # SPDX-License-Identifier: BSD-3-Clause
 
 import functools
+import sys
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from functools import update_wrapper
@@ -362,6 +363,24 @@ class _FuncWrapper:
             return self.function(*args, **kwargs)
 
 
+def parallel_thread_map(n_jobs, func, *iterables):
+    """
+    Like ``map()``, but runs using a thread pool on free-threaded Python.
+
+    TODO
+    """
+    if is_free_threaded():
+        n_jobs = joblib.effective_n_jobs(n_jobs)
+    else:
+        # If we're not free-threaded, don't bother with parallelism:
+        n_jobs = 1
+    if n_jobs == 1:
+        # Run sequentially:
+        return map(func, *iterables)
+    with ThreadPoolExecutor(n_jobs) as pool:
+        return pool.map(func, *iterables)
+
+
 def _get_threadpool_controller():
     """Return the global threadpool controller instance."""
     global _threadpool_controller
@@ -390,3 +409,17 @@ def _threadpool_controller_decorator(limits=1, user_api="blas"):
         return wrapper
 
     return decorator
+
+
+def is_free_threaded() -> bool:
+    """Return whether the current Python has no GIL.
+
+    .. versionadded:: 1.10
+
+    Returns
+    -------
+    bool
+        Whether the Python interpreter is free-threaded, i.e. has no GIL.
+    """
+    is_gil_enabled = getattr(sys, "_is_gil_enabled", lambda: True)
+    return not is_gil_enabled()
