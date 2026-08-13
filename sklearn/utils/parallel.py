@@ -229,47 +229,6 @@ def Parallel(*args, **kwargs) -> _FastThreadedParallel | _JoblibParallel:
         return _JoblibParallel(*args, **kwargs)
 
 
-def parallel_map(
-    func: Callable[[T], R],
-    iterable: Iterable[T],
-    n_jobs=None,
-    backend=None,
-    prefer=None,
-    require=None,
-) -> Iterable[R]:
-    """Similar to built-in ``map()``, but parallel.
-
-    There is no need to wrap in a ``delayed()``.
-
-    .. versionadded:: 1.10
-
-    Parameters
-    ----------
-    func : callable function
-        Called with each value in the iterable.
-    iterable : an iterable of values
-        Each value will be passed to func.
-    n_jobs : int, default=None
-        The maximum number of concurrently running jobs.
-        See :class:`joblib.Parallel` for details.
-    backend : str, ParallelBackendBase instance or None, default='loky'
-        Specify the parallelization backend implementation.
-        See :class:`joblib.Parallel` for details.
-    prefer : str in {'processes', 'threads'} or None, default=None
-        See :class:`joblib.Parallel` for details.
-    require : 'sharedmem' or None, default=None
-        See :class:`joblib.Parallel` for details.
-
-    Returns
-    -------
-    results : Iterable
-        Results of calling ``func(value)`` for value in the input iterable.
-    """
-    return Parallel(
-        n_jobs=n_jobs, backend=backend, require=require, return_as="generator"
-    )._map(func, iterable)
-
-
 # remove when https://github.com/joblib/joblib/issues/1071 is fixed
 def delayed(function):
     """Decorator used to capture the arguments of a function.
@@ -367,6 +326,24 @@ def parallel_thread_map(n_jobs, func, *iterables):
     """
     Like ``map()``, but runs using a thread pool on free-threaded Python, and
     aims for minimal overhead.
+
+    Parameters
+    ----------
+    n_jobs : int or None
+        The maximum number of concurrently running jobs.
+        See :class:`joblib.Parallel` for details.
+    func : callable function
+        Called with each value in the iterable.
+    iterables : iterables of values
+        Each value will be passed to func.
+
+    .. versionadded:: 1.10
+
+    Returns
+    -------
+    results : Iterable
+        Results of calling ``func(*values)`` for each set of values
+        from the input iterables.
     """
     if is_free_threaded():
         n_jobs = joblib.effective_n_jobs(n_jobs)
@@ -380,7 +357,7 @@ def parallel_thread_map(n_jobs, func, *iterables):
     # e.g. concurrent.futures.ThreadPoolExecutor. If that happens, add some
     # tests to ensure warnings and sklearn config get propagated.
     func = delayed(func)
-    return Parallel(n_jobs, require="sharedmem")(
+    return Parallel(n_jobs, require="sharedmem", return_as="generator")(
         func(*values) for values in zip(*iterables)
     )
 
