@@ -1440,75 +1440,75 @@ cdef class Tree:
             bint is_target_feature
             bint go_left
             bint is_categorical
-            intp_t _TREE_LEAF = TREE_LEAF  # to avoid python interactions
 
-        for sample_idx in range(X.shape[0]):
-            # init stacks for current sample
-            stack_size = 1
-            node_idx_stack[0] = 0  # root node
-            weight_stack[0] = 1  # all the samples are in the root node
-            total_weight = 0
+        with nogil:
+            for sample_idx in range(X.shape[0]):
+                # init stacks for current sample
+                stack_size = 1
+                node_idx_stack[0] = 0  # root node
+                weight_stack[0] = 1  # all the samples are in the root node
+                total_weight = 0
 
-            while stack_size > 0:
-                # pop the stack
-                stack_size -= 1
-                current_node_idx = node_idx_stack[stack_size]
-                current_node = &self.nodes[current_node_idx]
+                while stack_size > 0:
+                    # pop the stack
+                    stack_size -= 1
+                    current_node_idx = node_idx_stack[stack_size]
+                    current_node = &self.nodes[current_node_idx]
 
-                if current_node.left_child == _TREE_LEAF:
-                    # leaf node
-                    out[sample_idx] += (weight_stack[stack_size] *
-                                        self.value[current_node_idx])
-                    total_weight += weight_stack[stack_size]
-                else:
-                    # non-leaf node
-
-                    # determine if the split feature is a target feature
-                    is_target_feature = False
-                    for feature_idx in range(target_features.shape[0]):
-                        if target_features[feature_idx] == current_node.feature:
-                            is_target_feature = True
-                            break
-
-                    if is_target_feature:
-                        # In this case, we push left or right child on stack
-                        is_categorical = self.n_categories[current_node.feature] > 0
-                        go_left = goes_left(
-                            current_node.threshold,
-                            current_node.left_cat_bitset,
-                            current_node.missing_go_to_left,
-                            is_categorical,
-                            X[sample_idx, feature_idx],
-                        )
-                        if go_left:
-                            node_idx_stack[stack_size] = current_node.left_child
-                        else:
-                            node_idx_stack[stack_size] = current_node.right_child
-                        stack_size += 1
+                    if current_node.left_child == _TREE_LEAF:
+                        # leaf node
+                        out[sample_idx] += (weight_stack[stack_size] *
+                                            self.value[current_node_idx])
+                        total_weight += weight_stack[stack_size]
                     else:
-                        # In this case, we push both children onto the stack,
-                        # and give a weight proportional to the number of
-                        # samples going through each branch.
+                        # non-leaf node
 
-                        # push left child
-                        node_idx_stack[stack_size] = current_node.left_child
-                        left_sample_frac = (
-                            self.nodes[current_node.left_child].weighted_n_node_samples /
-                            current_node.weighted_n_node_samples)
-                        current_weight = weight_stack[stack_size]
-                        weight_stack[stack_size] = current_weight * left_sample_frac
-                        stack_size += 1
+                        # determine if the split feature is a target feature
+                        is_target_feature = False
+                        for feature_idx in range(target_features.shape[0]):
+                            if target_features[feature_idx] == current_node.feature:
+                                is_target_feature = True
+                                break
 
-                        # push right child
-                        node_idx_stack[stack_size] = current_node.right_child
-                        weight_stack[stack_size] = (
-                            current_weight * (1 - left_sample_frac))
-                        stack_size += 1
+                        if is_target_feature:
+                            # In this case, we push left or right child on stack
+                            is_categorical = self.n_categories[current_node.feature] > 0
+                            go_left = goes_left(
+                                current_node.threshold,
+                                current_node.left_cat_bitset,
+                                current_node.missing_go_to_left,
+                                is_categorical,
+                                X[sample_idx, feature_idx],
+                            )
+                            if go_left:
+                                node_idx_stack[stack_size] = current_node.left_child
+                            else:
+                                node_idx_stack[stack_size] = current_node.right_child
+                            stack_size += 1
+                        else:
+                            # In this case, we push both children onto the stack,
+                            # and give a weight proportional to the number of
+                            # samples going through each branch.
 
-            # Sanity check. Should never happen.
-            if not (0.999 < total_weight < 1.001):
-                raise ValueError("Total weight should be 1.0 but was %.9f" %
-                                 total_weight)
+                            # push left child
+                            node_idx_stack[stack_size] = current_node.left_child
+                            left_sample_frac = (
+                                self.nodes[current_node.left_child].weighted_n_node_samples /
+                                current_node.weighted_n_node_samples)
+                            current_weight = weight_stack[stack_size]
+                            weight_stack[stack_size] = current_weight * left_sample_frac
+                            stack_size += 1
+
+                            # push right child
+                            node_idx_stack[stack_size] = current_node.right_child
+                            weight_stack[stack_size] = (
+                                current_weight * (1 - left_sample_frac))
+                            stack_size += 1
+
+                # Sanity check. Should never happen.
+                if not (0.999 < total_weight < 1.001):
+                    raise ValueError("Total weight should be 1.0 but was %.9f" %
+                                     total_weight)
 
 
 def _check_n_classes(n_classes, expected_dtype):
