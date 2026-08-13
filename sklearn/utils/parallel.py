@@ -377,7 +377,8 @@ def parallel_thread_map(n_jobs, func, *iterables):
         # Run sequentially:
         return map(func, *iterables)
     # Future implementations may switch to alternatives with less overhead,
-    # e.g. concurrent.futures.ThreadPoolExecutor.
+    # e.g. concurrent.futures.ThreadPoolExecutor. If that happens, add some
+    # tests to ensure warnings and sklearn config get propagated.
     func = delayed(func)
     return Parallel(n_jobs, require="sharedmem")(
         func(*values) for values in zip(*iterables)
