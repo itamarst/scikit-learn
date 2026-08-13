@@ -365,9 +365,8 @@ class _FuncWrapper:
 
 def parallel_thread_map(n_jobs, func, *iterables):
     """
-    Like ``map()``, but runs using a thread pool on free-threaded Python.
-
-    TODO
+    Like ``map()``, but runs using a thread pool on free-threaded Python, and
+    aims for minimal overhead.
     """
     if is_free_threaded():
         n_jobs = joblib.effective_n_jobs(n_jobs)
@@ -377,8 +376,12 @@ def parallel_thread_map(n_jobs, func, *iterables):
     if n_jobs == 1:
         # Run sequentially:
         return map(func, *iterables)
-    with ThreadPoolExecutor(n_jobs) as pool:
-        return pool.map(func, *iterables)
+    # Future implementations may switch to alternatives with less overhead,
+    # e.g. concurrent.futures.ThreadPoolExecutor.
+    func = delayed(func)
+    return Parallel(n_jobs, require="sharedmem")(
+        func(*values) for values in zip(*iterables)
+    )
 
 
 def _get_threadpool_controller():
