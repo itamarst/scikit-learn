@@ -2,6 +2,8 @@ import itertools
 import re
 import time
 import warnings
+from threading import current_thread
+from typing import Callable, Iterable
 
 import joblib
 import numpy as np
@@ -21,7 +23,8 @@ from sklearn.utils.parallel import (
     Parallel,
     _FastThreadedParallel,
     delayed,
-    parallel_map,
+    is_free_threaded,
+    parallel_thread_map,
 )
 
 
@@ -266,11 +269,35 @@ def test_thread_no_fast_path_explicit_backend(params: dict[str, str]):
         Parallel(2, **params)
 
 
-@pytest.mark.parametrize("backend", ["loky", "threading"])
-def test_map(backend: str) -> None:
-    result = parallel_map(square, [1, 2, 3], 2, backend=backend)
-    assert not isinstance(result, list)
-    assert list(result) == [1, 4, 9]
+@pytest.mark.parametrize(
+    "func,arguments",
+    [
+        (lambda x: x + 1, [range(1000)]),
+        (lambda a, b: a + b, [range(1, 1001), range(2, 1002)]),
+    ],
+)
+def test_parallel_thread_map_results(func: Callable, arguments: list[Iterable]) -> None:
+    """``parallel_thread_map()`` gives the same results as ``map()``."""
+    for n_jobs in [None, 1, 2, -1]:
+        expected = list(map(func, *arguments))
+        actual = parallel_thread_map(n_jobs, func, *arguments)
+        assert not isinstance(actual, list)
+        assert expected == list(actual)
 
 
-# TODO test n_jobs for threads - set by config, passing -1, etc
+def test_parallel_thread_map_parallelism() -> None:
+    """
+    ``parallel_thread_map()`` uses parallelism only on free-threaded Python.
+    """
+    idents = set()
+
+    def add_ident(_):
+        idents.add(current_thread().ident)
+
+    list(parallel_thread_map(-1, add_ident, range(1000)))
+
+    if not is_free_threaded() or joblib.effective_n_jobs(-1) == 1:
+        assert idents == {current_thread().ident}
+    else:
+        assert current_thread().ident not in idents
+        assert len(idents) > 1
