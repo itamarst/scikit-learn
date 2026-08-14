@@ -1390,6 +1390,11 @@ class BaggingRegressor(RegressorMixin, BaseBagging):
             verbose=verbose,
         )
 
+    def _parallel_args(self):
+        if self.estimator is None:  # TODO and is_free_threaded():
+            return {"require": "sharedmem"}
+        return {}
+
     def predict(self, X, **params):
         """Predict regression target for X.
 
