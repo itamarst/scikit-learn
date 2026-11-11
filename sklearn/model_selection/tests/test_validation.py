@@ -79,8 +79,8 @@ from sklearn.tests.metadata_routing_common import (
     ConsumingScorer,
     ConsumingSplitter,
     _Registry,
-    caller_context,
     check_recorded_metadata,
+    run_routing_caller,
 )
 from sklearn.utils import shuffle
 from sklearn.utils._array_api import (
@@ -2588,16 +2588,16 @@ def test_validation_functions_routing(func, extra_args):
             score_metadata=score_metadata,
         )
 
-    with caller_context(func.__name__):
-        func(
-            estimator,
-            X=X,
-            y=y,
-            cv=splitter,
-            **scoring_args[func],
-            **extra_args,
-            params=params,
-        )
+    run_routing_caller(
+        func,
+        estimator,
+        X=X,
+        y=y,
+        cv=splitter,
+        **scoring_args[func],
+        **extra_args,
+        params=params,
+    )
 
     if func is not cross_val_predict:
         # cross_val_predict doesn't need a scorer
@@ -2651,15 +2651,15 @@ def test_learning_curve_exploit_incremental_learning_routing():
         sample_weight="fit_sample_weight", metadata="fit_metadata"
     )
 
-    with caller_context("learning_curve"):
-        learning_curve(
-            estimator,
-            X=X,
-            y=y,
-            cv=ConsumingSplitter(),
-            exploit_incremental_learning=True,
-            params=dict(fit_sample_weight=fit_sample_weight, fit_metadata=fit_metadata),
-        )
+    run_routing_caller(
+        learning_curve,
+        estimator,
+        X=X,
+        y=y,
+        cv=ConsumingSplitter(),
+        exploit_incremental_learning=True,
+        params=dict(fit_sample_weight=fit_sample_weight, fit_metadata=fit_metadata),
+    )
 
     assert len(estimator_registry)
     for _estimator in estimator_registry:
