@@ -66,6 +66,12 @@ def caller_context(caller):
         _MetadataCaller.reset(token)
 
 
+def run_routing_caller(func, *args, **kwargs):
+    """Run a function, setting the caller context to its name."""
+    with caller_context(func.__name__):
+        return func(*args, **kwargs)
+
+
 def record_metadata(obj, record_default=True, **kwargs):
     """Utility function to store passed metadata to a method of obj.
 
@@ -94,9 +100,10 @@ def record_metadata(obj, record_default=True, **kwargs):
         if frame.function in METHODS + ["consuming_metric"]:
             callee = frame.function
             break
-    for frame in stack[i + 1 :]:
-        if frame.function in METHODS + validation_functions:
-            caller = frame.function
+    if caller is None:
+        for frame in stack[i + 1 :]:
+            if frame.function in METHODS + validation_functions:
+                caller = frame.function
     callee = callee or stack[1].function
     caller = caller or stack[2].function
 
