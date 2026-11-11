@@ -79,6 +79,7 @@ from sklearn.tests.metadata_routing_common import (
     ConsumingScorer,
     ConsumingSplitter,
     _Registry,
+    caller_context,
     check_recorded_metadata,
 )
 from sklearn.utils import shuffle
@@ -1008,7 +1009,6 @@ def test_cross_val_predict(coo_container):
         )
 
 
-@skip_if_threaded_parallelism_enabled
 def test_cross_val_predict_decision_function_shape():
     X, y = make_classification(n_classes=2, n_samples=50, random_state=0)
 
@@ -2525,7 +2525,6 @@ def test_passed_unrequested_metadata(func, extra_args):
         )
 
 
-@skip_if_threaded_parallelism_enabled
 @pytest.mark.parametrize(
     "func, extra_args",
     [
@@ -2589,15 +2588,16 @@ def test_validation_functions_routing(func, extra_args):
             score_metadata=score_metadata,
         )
 
-    func(
-        estimator,
-        X=X,
-        y=y,
-        cv=splitter,
-        **scoring_args[func],
-        **extra_args,
-        params=params,
-    )
+    with caller_context(func.__name__):
+        func(
+            estimator,
+            X=X,
+            y=y,
+            cv=splitter,
+            **scoring_args[func],
+            **extra_args,
+            params=params,
+        )
 
     if func is not cross_val_predict:
         # cross_val_predict doesn't need a scorer
@@ -2634,7 +2634,6 @@ def test_validation_functions_routing(func, extra_args):
         )
 
 
-@skip_if_threaded_parallelism_enabled
 @config_context(enable_metadata_routing=True)
 def test_learning_curve_exploit_incremental_learning_routing():
     """Test that learning_curve routes metadata to the estimator correctly while
@@ -2652,14 +2651,15 @@ def test_learning_curve_exploit_incremental_learning_routing():
         sample_weight="fit_sample_weight", metadata="fit_metadata"
     )
 
-    learning_curve(
-        estimator,
-        X=X,
-        y=y,
-        cv=ConsumingSplitter(),
-        exploit_incremental_learning=True,
-        params=dict(fit_sample_weight=fit_sample_weight, fit_metadata=fit_metadata),
-    )
+    with caller_context("learning_curve"):
+        learning_curve(
+            estimator,
+            X=X,
+            y=y,
+            cv=ConsumingSplitter(),
+            exploit_incremental_learning=True,
+            params=dict(fit_sample_weight=fit_sample_weight, fit_metadata=fit_metadata),
+        )
 
     assert len(estimator_registry)
     for _estimator in estimator_registry:
