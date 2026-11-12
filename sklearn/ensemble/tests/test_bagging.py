@@ -41,6 +41,7 @@ from sklearn.tests.metadata_routing_common import (
     ConsumingClassifierWithoutPredictProba,
     _Registry,
     check_recorded_metadata,
+    run_routing_caller,
 )
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.utils import check_random_state
@@ -48,7 +49,6 @@ from sklearn.utils._testing import (
     assert_allclose,
     assert_array_almost_equal,
     assert_array_equal,
-    skip_if_threaded_parallelism_enabled,
 )
 from sklearn.utils.fixes import CSC_CONTAINERS, CSR_CONTAINERS
 
@@ -1106,7 +1106,6 @@ def test_bagging_with_metadata_routing(model):
     model.fit(iris.data, iris.target)
 
 
-@skip_if_threaded_parallelism_enabled
 @pytest.mark.parametrize(
     "sub_estimator, caller, callee",
     [
@@ -1140,8 +1139,9 @@ def test_metadata_routing_with_dynamic_method_selection(sub_estimator, caller, c
     getattr(estimator, set_callee_request)(sample_weight=True, metadata=True)
 
     bagging = BaggingClassifier(estimator=estimator)
-    bagging.fit(X, y)
-    getattr(bagging, caller)(
+    run_routing_caller(bagging.fit, X, y)
+    run_routing_caller(
+        getattr(bagging, caller),
         X=np.array([[1, 1], [1, 3], [0, 2]]),
         sample_weight=sample_weight,
         metadata=metadata,
